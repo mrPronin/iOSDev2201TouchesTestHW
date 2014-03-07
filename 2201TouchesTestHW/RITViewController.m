@@ -21,7 +21,6 @@
 @property (weak, nonatomic) UIView* draggingView;
 @property (assign, nonatomic) CGPoint touchOffset;
 
-
 @end
 
 @implementation RITViewController
@@ -35,8 +34,6 @@
     [self drawChessboard];
     
     [self drawCheckers];
-    
-    //[self freeCells];
 }
 
 - (void)didReceiveMemoryWarning
@@ -50,9 +47,7 @@
 }
 
 - (void) didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation {
-    
     [self shuffleCheckers];
-    
 }
 
 #pragma mark - Helper methods
@@ -212,8 +207,6 @@
     CGPoint pointOnMainView = [touch locationInView:self.whiteBox];
     UIView* view = [self.whiteBox hitTest:pointOnMainView withEvent:event];
     
-    //NSLog(@"bounds = %@", NSStringFromCGRect(view.bounds));
-    
     if ([setOfCheckers containsObject:view]) {
         
         self.draggingView = view;
@@ -222,18 +215,9 @@
         
         CGPoint touchPoint = [touch locationInView:self.draggingView];
         
-        /*
-        NSLog(@"bounds = %@", NSStringFromCGRect(self.draggingView.bounds));
-        NSLog(@"MidX = %f, MidY = %f", CGRectGetMidX(self.draggingView.bounds), CGRectGetMidY(self.draggingView.bounds));
-        NSLog(@"Touch point = %@", NSStringFromCGPoint(touchPoint));
-        */
-         
         self.touchOffset = CGPointMake(
                                        CGRectGetMidX(self.draggingView.bounds) - touchPoint.x,
                                        CGRectGetMidY(self.draggingView.bounds) - touchPoint.y);
-        
-        //NSLog(@"Touch offset = %@", NSStringFromCGPoint(self.touchOffset));
-        //[self.draggingView.layer removeAllAnimations];
         
         [UIView animateWithDuration:0.3f animations:^{
             self.draggingView.transform = CGAffineTransformMakeScale(1.2f, 1.2f);
