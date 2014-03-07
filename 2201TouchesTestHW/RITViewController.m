@@ -11,14 +11,16 @@
 @interface RITViewController ()
 
 @property (strong, nonatomic) UIView* chessboard;
-@property (assign, nonatomic) NSUInteger borderOffset;
+@property (strong, nonatomic) UIView* whiteBox;
 @property (assign, nonatomic) NSUInteger cellCount;
-@property (assign, nonatomic) NSUInteger screenMin;
-@property (assign, nonatomic) NSUInteger screenMax;
 @property (assign, nonatomic) NSUInteger cellSize;
 @property (assign, nonatomic) NSUInteger fieldSize;
 @property (strong, nonatomic) NSMutableArray* cells;
 @property (strong, nonatomic) NSMutableArray* checkers;
+
+@property (weak, nonatomic) UIView* draggingView;
+@property (assign, nonatomic) CGPoint touchOffset;
+
 
 @end
 
@@ -33,6 +35,8 @@
     [self drawChessboard];
     
     [self drawCheckers];
+    
+    //[self freeCells];
 }
 
 - (void)didReceiveMemoryWarning
@@ -55,13 +59,12 @@
 
 - (void) initializeProperties {
     
-    self.borderOffset           = 20;
     self.cellCount              = 8;
-    self.screenMin              = MIN(CGRectGetWidth(self.view.frame), CGRectGetHeight(self.view.frame));
-    self.screenMax              = MAX(CGRectGetWidth(self.view.frame), CGRectGetHeight(self.view.frame));
+    NSUInteger borderOffset     = 20;
+    NSUInteger screenMin        = MIN(CGRectGetWidth(self.view.frame), CGRectGetHeight(self.view.frame));
     
     // calculate cell size and field size
-    self.cellSize               = (self.screenMin - self.borderOffset * 2 - 4) / self.cellCount;
+    self.cellSize               = (screenMin - borderOffset * 2 - 4) / self.cellCount;
     self.fieldSize              = self.cellSize * self.cellCount + 4;
     
     self.cells                  = [NSMutableArray array];
@@ -91,9 +94,9 @@
                                              CGRectGetWidth(rect) - 2
                                              );
     
-    UIView* whiteBox            = [[UIView alloc] initWithFrame:rect];
-    whiteBox.backgroundColor    = [UIColor whiteColor];
-    [self.chessboard addSubview:whiteBox];
+    self.whiteBox            = [[UIView alloc] initWithFrame:rect];
+    self.whiteBox.backgroundColor    = [UIColor whiteColor];
+    [self.chessboard addSubview:self.whiteBox];
     
     // draw cells
     UIView *view =  nil;
@@ -111,7 +114,7 @@
             view.backgroundColor    = [UIColor blackColor];
             __weak UIView* weakView = view;
             [self.cells addObject:weakView];
-            [whiteBox addSubview:view];
+            [self.whiteBox addSubview:view];
             
             x+= self.cellSize * 2;
         }
@@ -137,7 +140,7 @@
     
     __weak UIView* weakView = checker;
     [self.checkers addObject:weakView];
-    [self.chessboard addSubview:checker];
+    [self.whiteBox addSubview:checker];
 }
 
 - (void) drawCheckers {
@@ -150,7 +153,7 @@
         
         if (i < checkersCount) {
             // white checker
-            [self createTheCheckerWithColor:[UIColor whiteColor] andSize:checkerSize onPoint:cell.center];
+            [self createTheCheckerWithColor:[UIColor grayColor] andSize:checkerSize onPoint:cell.center];
         }
         
         if (i >= ([self.cells count] - checkersCount)) {
@@ -173,6 +176,131 @@
         checker.center              = cell.center;
         [cells removeObjectAtIndex:cellIndex];
     }
+    
+}
+
+- (double) calculateDistanceBetween:(CGPoint)point1 and:(CGPoint)point2 {
+    
+    double dx = (point2.x-point1.x);
+    double dy = (point2.y-point1.y);
+    return sqrt(dx*dx + dy*dy);
+    
+}
+
+- (BOOL) cellIsFree:(UIView*)cell forChecker:(UIView*)checker {
+    BOOL cellIsFree = YES;
+    
+    for (UIView* ch in self.checkers) {
+        
+        if ([checker isEqual:ch]) {
+            continue;
+        }
+        
+        if ([cell pointInside:[self.whiteBox convertPoint:ch.center toView:cell] withEvent:nil]) {
+            cellIsFree = NO;
+        }
+    }
+    return cellIsFree;
+}
+
+#pragma mark - Touches
+
+- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
+    
+    NSSet* setOfCheckers = [NSSet setWithArray:self.checkers];
+    UITouch* touch = [touches anyObject];
+    CGPoint pointOnMainView = [touch locationInView:self.whiteBox];
+    UIView* view = [self.whiteBox hitTest:pointOnMainView withEvent:event];
+    
+    //NSLog(@"bounds = %@", NSStringFromCGRect(view.bounds));
+    
+    if ([setOfCheckers containsObject:view]) {
+        
+        self.draggingView = view;
+        
+        [self.view bringSubviewToFront:self.draggingView];
+        
+        CGPoint touchPoint = [touch locationInView:self.draggingView];
+        
+        /*
+        NSLog(@"bounds = %@", NSStringFromCGRect(self.draggingView.bounds));
+        NSLog(@"MidX = %f, MidY = %f", CGRectGetMidX(self.draggingView.bounds), CGRectGetMidY(self.draggingView.bounds));
+        NSLog(@"Touch point = %@", NSStringFromCGPoint(touchPoint));
+        */
+         
+        self.touchOffset = CGPointMake(
+                                       CGRectGetMidX(self.draggingView.bounds) - touchPoint.x,
+                                       CGRectGetMidY(self.draggingView.bounds) - touchPoint.y);
+        
+        //NSLog(@"Touch offset = %@", NSStringFromCGPoint(self.touchOffset));
+        //[self.draggingView.layer removeAllAnimations];
+        
+        [UIView animateWithDuration:0.3f animations:^{
+            self.draggingView.transform = CGAffineTransformMakeScale(1.2f, 1.2f);
+            self.draggingView.alpha = 0.6f;
+        }];
+        
+    } else {
+        
+        self.draggingView = nil;
+        
+    }
+}
+
+- (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
+    
+    if (self.draggingView) {
+        
+        UITouch* touch = [touches anyObject];
+        CGPoint pointOnMainView = [touch locationInView:self.whiteBox];
+        
+        CGPoint correction = CGPointMake(
+                                         pointOnMainView.x + self.touchOffset.x,
+                                         pointOnMainView.y + self.touchOffset.y);
+        
+        self.draggingView.center = correction;
+    }
+    
+}
+
+- (void) onTouchesEnded:(NSSet*)touches withEvent:(UIEvent*)event {
+    
+    [UIView animateWithDuration:0.3f animations:^{
+        self.draggingView.transform = CGAffineTransformIdentity;
+        self.draggingView.alpha = 1.f;
+    }];
+    
+    // find the minimum distance cell
+    CGPoint centerPoint = self.draggingView.center;
+    UIView* forstView = self.cells[0];
+    CGPoint nearestPoint = forstView.center;
+    CGFloat minDistance = [self calculateDistanceBetween:centerPoint and:nearestPoint];
+    for (UIView* cell in self.cells) {
+        
+        if (!([self cellIsFree:cell forChecker:self.draggingView])) {
+            continue;
+        }
+        
+        CGFloat distance = [self calculateDistanceBetween:centerPoint and:cell.center];
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestPoint = cell.center;
+        }
+    }
+    self.draggingView.center = nearestPoint;
+    
+    self.draggingView = nil;
+}
+
+- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
+    
+    [self onTouchesEnded:touches withEvent:event];
+    
+}
+
+- (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event {
+    
+    [self onTouchesEnded:touches withEvent:event];
     
 }
 
